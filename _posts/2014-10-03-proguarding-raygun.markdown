@@ -21,27 +21,30 @@ If we are distributing executables to end users, as in for example desktop Java 
 
 [Proguard](http://proguard.sourceforge.net/) is an utility that does that - it obfuscates Java apps (also Android) and also strips out the unused methods (of external libraries), debug logs, and makes your app smaller and safer.
 
-Essentially it takes your ```com.example.package.MyClass.myMethod()``` and turns it into something like ```a.b.c.D.e()```.
+Essentially it takes your NullPointerException
+at ```com.example.package.MyClass.myMethod(MyClass.java:10)``` and turns it into NullPointerExcepton at something like ```com.example.a.a.a(Unknown Source)```.
 Obviously, this makes it harder to reverse engineer, but also quite impossible to debug when you find something like that in the stacktrace.
 Luckily, Proguard generates a mapping file - *mapping.txt* which describes the steps taken to rename any names. The entries look like this, for myMethod in MyClass.
+
 ```
-com.example.package.MyClass -> a.b.c.D:
+com.example.package.MyClass -> a.b.c.d:
  int myMethod(java.lang.String) -> e
 ```
 
 It's also very easy to run and add to your build scripts, in Gradle it looks something like this, to run it as part of a release build:
+
 ```
 buildTypes {
     release {
         runProguard true
-        proguardFiles 'proguard-rules.txt'
+        proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
     ...
 ```
 Alternatively, you can run it from shell as well (or use the GUI if that's your thing).
 
 **Proguard won't run becase XYZ**
 
-See that *proguard-rules.txt* file there? That's where you tell proguard what to do, and more importantly, what to keep.
+See that *proguard-rules.pro* file there? That's where you tell proguard what to do, and more importantly, what to keep.
 You will want to keep you annotations, 3rd party libraries, and you model classes that get serialized, to JSON for instance. There's where all the magic happens and where [Stack Overflow](http://stackoverflow.com/search?q=proguard) comes in handy so I won't go into detail here. Esentially you need a custom-built rules file for each project.
 
 ##And wtf is [Raygun](http://raygun.io)?
@@ -52,9 +55,17 @@ Which is the right thing to do.
 
 ##Getting Raygun and Proguard play nicely together
 
-Remember proguard-rules.txt Raygun is one of these 3rd party libraries; If you don't include the following lines in your proguard rules file, your raygun won't make any successful POST requests as the request will be incorrectly formatted.
+Remember proguard-rules.txt Raygun is one of these 3rd party libraries; If you don't include the following lines in your proguard rules file, your raygun won't make any successful POST requests as the request will be incorrectly formatted. Raygun will then throw you 400 responses because fields named a, b, c in your requests don't mean anything.
+Behold a 400 error and a 200 error in the mighty logcat:
+
+```
+2456-2470/? D/Raygun4Android﹕ Exception message HTTP POST result: 400
+
+
+```
 
 You should add these lines to your proguard rules:
+
 ```
 -keep class main.java.com.mindscapehq.android.raygun4android.** { *; }
 -keepnames class main.java.com.mindscapehq.android.raygun4android.*
@@ -71,6 +82,7 @@ Basically: Without these lines, Proguard would obfuscate everything in the Raygu
         ...
 ```
 You are effectively sending something like this instead:
+
 ```
 {
     'a': ...,
@@ -78,7 +90,9 @@ You are effectively sending something like this instead:
         'c':...
         ...
 ```
-And Raygun will throw you 400 responses because your requests don't mean anything.
+
+And Raygun POST response should be a 202, meaning request successful.
+```raygunpostservice D/Raygun4Android﹕ Exception message HTTP POST result: 202```
 
 **My errors are obfuscated!**
 
@@ -87,7 +101,8 @@ So your NullPointerExceptions will look like:
 
 ```
 NullPointerException: null
-    a.a.b.Ca.b in SourceFile:170
+    com.example.a.a.a:-1
+    com.example.MyActivity.onResume:-1
     ...
 ```
 Making it hard to understand anything, again.
@@ -121,4 +136,6 @@ The output file is properly formatted for Proguard and can then be thrown into t
 
 That's pretty much it.
 
-Also - I have it on my TODO, but if you find it really useful you can help by making it automatically deobfuscate with the output of the script to make it even better to use. Or scrape Raygun's website. Or if you're from Mindscape just let me download the original stacktrace when an error is reported. That would be swell. Until then.
+Also - I have it on my TODO, but if you find it really useful you can help by making it automatically deobfuscate with the output of the script to make it even better to use. Or scrape Raygun's website. Or if you're from Mindscape just let me download the original stacktrace when an error is reported. That would be swell.
+
+Another also, source code for the example project is available at: https://github.com/zmarkan/proguard_raygun_example
